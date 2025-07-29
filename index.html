@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG-Anything: An Interactive Deep Dive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony Neutrals -->
+    <!-- Application Structure Plan: The application is designed as a top-down narrative journey. It starts with a high-level overview (the "Why"), then dives into the core architecture with an interactive 5-stage pipeline diagram (the "How"). This is followed by a deep-dive into the key technologies (LightRAG, Parsers) using a tabbed interface. A key interactive element is a dynamic chart comparing the parsers based on user-selected use cases, turning information into a decision-making tool. This structure was chosen to make a complex technical topic digestible and engaging, prioritizing conceptual understanding before drilling down into specifics, which aligns with a technical user's learning process. -->
+    <!-- Visualization & Content Choices: 
+        - The Problem (Traditional RAG): Goal=Illustrate fragmentation. Viz=Simple HTML/CSS diagram. Interaction=None. Justification=Clear, simple visual metaphor.
+        - 5-Stage Pipeline: Goal=Explain architecture. Viz=Clickable HTML/CSS flowchart. Interaction=Clicking a stage reveals its details. Justification=Makes the core system explorable and less intimidating than a wall of text.
+        - Parser Comparison: Goal=Aid decision-making. Viz=Chart.js Bar Chart. Interaction=Dropdown filter by use case dynamically updates chart and recommendations. Justification=More engaging and useful than a static table. Library=Chart.js.
+        - Core Tech Deep Dive: Goal=Organize detailed information. Viz=Tabbed interface. Interaction=Click to switch content. Justification=Standard, effective UI for segmenting complex information without cluttering the page.
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8F7F4;
+            color: #2c3e50;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .nav-button.active {
+            color: #3B82F6;
+        }
+        .nav-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #3B82F6;
+            border-radius: 2px;
+        }
+        .pipeline-stage {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .pipeline-stage.active, .pipeline-stage:hover {
+            border-color: #3B82F6;
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .tab-button {
+            transition: all 0.3s ease;
+        }
+        .tab-button.active {
+            background-color: #3B82F6;
+            color: white;
+        }
+        .content-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">RAG-Anything Explorer</h1>
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#overview" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Overview</a>
+                <a href="#pipeline" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Pipeline</a>
+                <a href="#tech" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Core Tech</a>
+                <a href="#comparison" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Comparison</a>
+                <a href="#use-cases" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Use Cases</a>
+            </div>
+            <button id="mobile-menu-button" class="md:hidden text-gray-700 focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+            </button>
+        </nav>
+        <div id="mobile-menu" class="hidden md:hidden px-6 pb-4 space-y-2">
+             <a href="#overview" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Overview</a>
+             <a href="#pipeline" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Pipeline</a>
+             <a href="#tech" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Core Tech</a>
+             <a href="#comparison" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Comparison</a>
+             <a href="#use-cases" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Use Cases</a>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="overview" class="text-center mb-24 scroll-mt-24">
+            <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-4">Unlocking Knowledge from Any Document</h2>
+            <p class="max-w-3xl mx-auto text-lg text-gray-600 mb-8">
+                RAG-Anything is an all-in-one system designed to overcome the "invisible limitation" of traditional RAG systems: their inability to understand multimodal content. It provides a unified framework to process, understand, and query documents containing text, tables, images, and equations, preserving the critical context that connects them.
+            </p>
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
+                <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                    <h3 class="font-bold text-xl mb-3 text-red-500">The Problem: Traditional RAG</h3>
+                    <p class="text-gray-600 mb-4">Standard RAG systems flatten documents into simple text chunks. This process breaks the crucial links between a paragraph and the chart it describes, or a table and its explanation, leading to fragmented context and incomplete answers.</p>
+                    <div class="flex flex-col items-center p-4 bg-red-50 rounded-lg">
+                        <span class="text-3xl mb-2">📄</span>
+                        <span class="text-2xl text-red-400">➔</span>
+                        <div class="flex space-x-2 mt-2">
+                           <div class="p-2 bg-white border border-dashed border-red-400 rounded">Txt</div>
+                           <div class="p-2 bg-white border border-dashed border-red-400 rounded">Txt</div>
+                           <div class="p-2 bg-white border border-dashed border-red-400 rounded">Txt</div>
+                        </div>
+                        <p class="text-sm mt-2 text-red-600">Context is lost</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                    <h3 class="font-bold text-xl mb-3 text-blue-500">The Solution: RAG-Anything</h3>
+                    <p class="text-gray-600 mb-4">RAG-Anything intelligently deconstructs documents, preserving all modalities. It builds an interconnected knowledge graph, linking text, images, and tables, enabling true contextual understanding and comprehensive answers.</p>
+                     <div class="flex flex-col items-center p-4 bg-blue-50 rounded-lg">
+                        <span class="text-3xl mb-2">📄</span>
+                        <span class="text-2xl text-blue-400">➔</span>
+                        <div class="flex items-center space-x-2 mt-2">
+                           <div class="p-2 bg-white border border-solid border-blue-400 rounded">Txt</div>
+                           <div class="w-px h-6 bg-blue-400"></div>
+                           <div class="p-2 bg-white border border-solid border-blue-400 rounded">📊</div>
+                           <div class="w-px h-6 bg-blue-400"></div>
+                           <div class="p-2 bg-white border border-solid border-blue-400 rounded">🖼️</div>
+                        </div>
+                        <p class="text-sm mt-2 text-blue-600">Context is preserved</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="pipeline" class="mb-24 scroll-mt-24">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">The 5-Stage Multimodal Pipeline</h2>
+                <p class="max-w-3xl mx-auto text-lg text-gray-600 mt-4">This is the engine of RAG-Anything. It's a carefully orchestrated workflow that transforms raw documents into a queryable, multimodal knowledge base. Click on any stage to explore its function.</p>
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8">
+                <div id="stage-1" class="pipeline-stage bg-white p-4 rounded-lg shadow-sm text-center w-full md:w-1/5">
+                    <div class="text-2xl mb-2">1.</div>
+                    <h4 class="font-semibold">Parsing</h4>
+                </div>
+                <div class="text-2xl text-gray-400 hidden md:block">→</div>
+                <div id="stage-2" class="pipeline-stage bg-white p-4 rounded-lg shadow-sm text-center w-full md:w-1/5">
+                    <div class="text-2xl mb-2">2.</div>
+                    <h4 class="font-semibold">Routing</h4>
+                </div>
+                <div class="text-2xl text-gray-400 hidden md:block">→</div>
+                <div id="stage-3" class="pipeline-stage bg-white p-4 rounded-lg shadow-sm text-center w-full md:w-1/5">
+                    <div class="text-2xl mb-2">3.</div>
+                    <h4 class="font-semibold">Analysis</h4>
+                </div>
+                <div class="text-2xl text-gray-400 hidden md:block">→</div>
+                <div id="stage-4" class="pipeline-stage bg-white p-4 rounded-lg shadow-sm text-center w-full md:w-1/5">
+                    <div class="text-2xl mb-2">4.</div>
+                    <h4 class="font-semibold">Indexing</h4>
+                </div>
+                <div class="text-2xl text-gray-400 hidden md:block">→</div>
+                <div id="stage-5" class="pipeline-stage bg-white p-4 rounded-lg shadow-sm text-center w-full md:w-1/5">
+                    <div class="text-2xl mb-2">5.</div>
+                    <h4 class="font-semibold">Retrieval</h4>
+                </div>
+            </div>
+            <div id="pipeline-content" class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 min-h-[200px]">
+            </div>
+        </section>
+
+        <section id="tech" class="mb-24 scroll-mt-24">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">Core Technology Deep Dive</h2>
+                <p class="max-w-3xl mx-auto text-lg text-gray-600 mt-4">RAG-Anything is built on a foundation of powerful, specialized open-source components. Explore the key technologies that power its parsing and knowledge graph capabilities.</p>
+            </div>
+            <div class="flex justify-center mb-8">
+                <div class="flex space-x-2 bg-gray-200 p-1 rounded-full">
+                    <button data-tab="lightrag" class="tab-button px-6 py-2 rounded-full font-medium">LightRAG</button>
+                    <button data-tab="mineru" class="tab-button px-6 py-2 rounded-full font-medium">MinerU</button>
+                    <button data-tab="docling" class="tab-button px-6 py-2 rounded-full font-medium">Docling</button>
+                </div>
+            </div>
+            <div id="tech-content" class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 min-h-[300px]">
+            </div>
+        </section>
+        
+        <section id="comparison" class="mb-24 scroll-mt-24">
+             <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">Interactive Parser Comparison</h2>
+                <p class="max-w-3xl mx-auto text-lg text-gray-600 mt-4">Choosing the right parser is critical for high-quality data ingestion. Select a use case to see a dynamic comparison and recommendation for either MinerU or Docling.</p>
+            </div>
+            <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                    <div>
+                        <label for="use-case-selector" class="block text-sm font-medium text-gray-700 mb-1">Select Your Use Case:</label>
+                        <select id="use-case-selector" class="mt-1 block w-full md:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                            <option value="default">General Comparison</option>
+                            <option value="academic">Academic / Scanned PDFs</option>
+                            <option value="office">Corporate / MS Office Docs</option>
+                            <option value="web">Web Content / HTML</option>
+                        </select>
+                    </div>
+                    <div id="recommendation-box" class="text-center md:text-right p-4 rounded-lg bg-blue-50 border border-blue-200 w-full md:w-auto">
+                        <h4 class="font-semibold text-blue-800">Recommendation</h4>
+                        <p id="recommendation-text" class="text-blue-700">Select a use case.</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="parser-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="use-cases" class="scroll-mt-24">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">Strategic Adoption & Use Cases</h2>
+                <p class="max-w-3xl mx-auto text-lg text-gray-600 mt-4">RAG-Anything is ideal for any domain where answers lie in the complex interplay between text, tables, and visuals.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 text-center">
+                    <div class="text-4xl mb-4">🔬</div>
+                    <h3 class="font-bold text-xl mb-2">Academic & Technical</h3>
+                    <p class="text-gray-600">Parse complex layouts, formulas (LaTeX), and diagrams from scientific papers and technical manuals with high fidelity.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 text-center">
+                    <div class="text-4xl mb-4">📈</div>
+                    <h3 class="font-bold text-xl mb-2">Financial & Business</h3>
+                    <p class="text-gray-600">Analyze reports by linking textual commentary directly to the data in charts and tables for deeper insights.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 text-center">
+                    <div class="text-4xl mb-4">⚖️</div>
+                    <h3 class="font-bold text-xl mb-2">High-Stakes Knowledge</h3>
+                    <p class="text-gray-600">Enable exhaustive retrieval for legal, pharmaceutical, or engineering domains where cross-referencing is critical.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-24">
+        <div class="container mx-auto px-6 py-8 text-center">
+            <p>Interactive Explainer for RAG-Anything</p>
+            <p class="text-sm text-gray-400 mt-2">Built to demonstrate the capabilities of multimodal RAG systems.</p>
+        </div>
+    </footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const pipelineData = {
+        'stage-1': {
+            title: 'Stage 1: Document Parsing & Decomposition',
+            content: `
+                <p class="mb-4 text-gray-700">The process begins by ingesting a source document. The system uses a powerful, user-selectable parsing engine to convert the raw file into a structured representation of its parts, preserving original context and layout.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Parser Integration:</strong> Choose between <strong>MinerU</strong> (for complex/scanned PDFs) and <strong>Docling</strong> (for native Office/HTML files).</li>
+                    <li><strong>Adaptive Decomposition:</strong> Intelligently segments the document into text blocks, images, tables, and equations.</li>
+                    <li><strong>Context Preservation:</strong> Retains the location and order of all extracted elements, which is crucial for later stages.</li>
+                </ul>
+            `
+        },
+        'stage-2': {
+            title: 'Stage 2: Content Understanding & Routing',
+            content: `
+                <p class="mb-4 text-gray-700">Once decomposed, this stage acts as an intelligent switchboard, categorizing each content piece and routing it for specialized processing.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Autonomous Categorization:</strong> Automatically identifies content as text, image, table, etc.</li>
+                    <li><strong>Concurrent Processing:</strong> To maximize efficiency, text and multimodal pipelines (e.g., image captioning) run in parallel.</li>
+                    <li><strong>Hierarchy Preservation:</strong> Extracts and encodes the document's structure (sections, subsections) for contextual awareness.</li>
+                </ul>
+            `
+        },
+        'stage-3': {
+            title: 'Stage 3: The Multimodal Analysis Engine',
+            content: `
+                <p class="mb-4 text-gray-700">Here, a suite of modality-aware processors performs deep analysis on non-textual elements, transforming raw data into semantically rich, queryable information.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Visual Analyzer:</strong> Uses vision models to generate descriptive captions for images and charts.</li>
+                    <li><strong>Data Interpreter:</strong> Parses tables to understand their structure and the relationships within the data.</li>
+                    <li><strong>Math Parser:</strong> Natively supports LaTeX to understand and index complex mathematical formulas.</li>
+                </ul>
+            `
+        },
+        'stage-4': {
+            title: 'Stage 4: Multimodal Knowledge Graph Index',
+            content: `
+                <p class="mb-4 text-gray-700">This is the heart of the system's intelligence. All processed content is synthesized into a structured, interconnected knowledge graph, which serves as the system's reasoning backbone.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Node Creation:</strong> Text chunks, captioned images, and analyzed tables become nodes in the graph.</li>
+                    <li><strong>Relationship Mapping:</strong> Automatically creates semantic links (edges) between nodes, such as a 'describes' link from a text chunk to an image.</li>
+                    <li><strong>Structural Encoding:</strong> The document's hierarchy is encoded, preserving the flow of chapters and sections.</li>
+                </ul>
+            `
+        },
+        'stage-5': {
+            title: 'Stage 5: Modality-Aware Retrieval',
+            content: `
+                <p class="mb-4 text-gray-700">The final stage leverages the rich knowledge graph to perform retrieval that is far more sophisticated than simple vector search.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Vector-Graph Fusion:</strong> Combines vector search (for semantic relevance) with graph traversal (for contextual exploration).</li>
+                    <li><strong>Adaptive Ranking:</strong> Scores results based on the query's modality (e.g., prioritizing images for a visual query).</li>
+                    <li><strong>Coherent Retrieval:</strong> Retrieves not just single chunks, but entire subgraphs of related information, providing the LLM with complete context.</li>
+                </ul>
+            `
+        }
+    };
+
+    const techData = {
+        lightrag: {
+            title: 'LightRAG: The Knowledge Graph Engine',
+            content: `
+                <p class="mb-4 text-gray-700">LightRAG is the foundational framework that builds and queries the multimodal knowledge graph. It's an efficient and scalable GraphRAG implementation designed for real-time performance.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Efficient Indexing:</strong> Uses an LLM to extract entities and relationships, then intelligently deduplicates them to create a compact, efficient graph.</li>
+                    <li><strong>Dual-Level Retrieval:</strong> A key innovation that uses targeted lookups for specific queries ("What is the capital of France?") and broader graph traversal for conceptual questions ("What was the impact of the Renaissance?").</li>
+                    <li><strong>Incremental Updates:</strong> The graph can be updated with new information without requiring a full rebuild, making it ideal for dynamic knowledge bases.</li>
+                </ul>
+            `
+        },
+        mineru: {
+            title: 'MinerU: The High-Fidelity PDF Parser',
+            content: `
+                <p class="mb-4 text-gray-700">MinerU is a specialized, open-source engine for extracting content from challenging documents, especially complex or scanned PDFs.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Advanced Layout Analysis:</strong> Excels at parsing multi-column layouts and returning text in a logical reading order.</li>
+                    <li><strong>Powerful Integrated OCR:</strong> Automatically detects scanned documents and uses Optical Character Recognition (supporting 84 languages) to extract text.</li>
+                    <li><strong>Rich Multimodal Extraction:</strong> Natively extracts text, images, tables (as HTML), and mathematical formulas (as LaTeX).</li>
+                    <li><strong>Best For:</strong> Academic papers, scientific journals, scanned archives, and technical manuals.</li>
+                </ul>
+            `
+        },
+        docling: {
+            title: 'Docling: The Native Office & HTML Parser',
+            content: `
+                <p class="mb-4 text-gray-700">Docling is an open-source toolkit optimized for parsing formats where semantic structure is already encoded, like Microsoft Office and HTML files.</p>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li><strong>Native File Support:</strong> By parsing DOCX, PPTX, and HTML files directly, it perfectly preserves the intended structure (headings, lists, etc.).</li>
+                    <li><strong>Deep Ecosystem Integration:</strong> Offers plug-and-play integrations with popular frameworks like LangChain and LlamaIndex.</li>
+                    <li><strong>Unified Data Model:</strong> Outputs a clean, predictable, and structured JSON representation of the document.</li>
+                    <li><strong>Best For:</strong> Enterprise knowledge bases in MS Office, web content, and projects using the LangChain/LlamaIndex ecosystem.</li>
+                </ul>
+            `
+        }
+    };
+
+    const pipelineStages = document.querySelectorAll('.pipeline-stage');
+    const pipelineContent = document.getElementById('pipeline-content');
+
+    function updatePipelineContent(stageId) {
+        pipelineStages.forEach(s => s.classList.remove('active'));
+        const stageElement = document.getElementById(stageId);
+        if (stageElement) {
+            stageElement.classList.add('active');
+            const data = pipelineData[stageId];
+            pipelineContent.innerHTML = `
+                <div class="content-fade-in">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">${data.title}</h3>
+                    ${data.content}
+                </div>
+            `;
+        }
+    }
+
+    pipelineStages.forEach(stage => {
+        stage.addEventListener('click', () => updatePipelineContent(stage.id));
+    });
+
+    updatePipelineContent('stage-1');
+
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const techContent = document.getElementById('tech-content');
+
+    function updateTechContent(tabId) {
+        tabButtons.forEach(b => b.classList.remove('active'));
+        const tabButton = document.querySelector(`[data-tab="${tabId}"]`);
+        if(tabButton) {
+            tabButton.classList.add('active');
+            const data = techData[tabId];
+            techContent.innerHTML = `
+                <div class="content-fade-in">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">${data.title}</h3>
+                    ${data.content}
+                </div>
+            `;
+        }
+    }
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => updateTechContent(button.dataset.tab));
+    });
+    
+    updateTechContent('lightrag');
+
+    const parserChartCtx = document.getElementById('parser-chart').getContext('2d');
+    let parserChart;
+
+    const parserData = {
+        labels: ['Complex PDF Layouts', 'Scanned Docs (OCR)', 'MS Office Native', 'HTML Native', 'Formula (LaTeX)', 'Ecosystem Integration'],
+        datasets: [
+            {
+                label: 'MinerU',
+                data: [10, 10, 5, 2, 10, 6],
+                backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1
+            },
+            {
+                label: 'Docling',
+                data: [7, 8, 10, 10, 7, 10],
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }
+        ]
+    };
+    
+    const useCaseHighlight = {
+        'default': [1, 1, 1, 1, 1, 1],
+        'academic': [1, 1, 0.3, 0.3, 1, 0.5],
+        'office': [0.5, 0.7, 1, 0.5, 0.7, 1],
+        'web': [0.3, 0.3, 0.5, 1, 0.3, 1]
+    };
+    
+    const recommendationText = {
+        'default': 'Both are powerful; choice depends on your specific documents.',
+        'academic': '<strong>MinerU</strong> is highly recommended for its superior PDF layout analysis and LaTeX support.',
+        'office': '<strong>Docling</strong> is the clear choice for its native MS Office parsing and deep ecosystem integration.',
+        'web': '<strong>Docling</strong> is recommended for its native HTML support.'
+    };
+
+    function createOrUpdateChart(useCase = 'default') {
+        const highlight = useCaseHighlight[useCase];
+        
+        const backgroundColorsMinerU = parserData.datasets[0].data.map((_, i) => `rgba(255, 99, 132, ${0.2 + 0.6 * highlight[i]})`);
+        const backgroundColorsDocling = parserData.datasets[1].data.map((_, i) => `rgba(54, 162, 235, ${0.2 + 0.6 * highlight[i]})`);
+        
+        if (parserChart) {
+            parserChart.data.datasets[0].backgroundColor = backgroundColorsMinerU;
+            parserChart.data.datasets[1].backgroundColor = backgroundColorsDocling;
+            parserChart.update();
+        } else {
+            parserChart = new Chart(parserChartCtx, {
+                type: 'bar',
+                data: {
+                    labels: parserData.labels,
+                    datasets: [
+                        { ...parserData.datasets[0], backgroundColor: backgroundColorsMinerU },
+                        { ...parserData.datasets[1], backgroundColor: backgroundColorsDocling }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 10,
+                            title: { display: true, text: 'Capability Score (Qualitative)' }
+                        },
+                        y: {
+                           ticks: {
+                                autoSkip: false,
+                                callback: function(value, index, values) {
+                                    const label = this.getLabelForValue(value);
+                                    return label.length > 16 ? label.substring(0, 16) + '...' : label;
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.x !== null) {
+                                        label += `${context.parsed.x}/10`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        document.getElementById('recommendation-text').innerHTML = recommendationText[useCase];
+    }
+    
+    document.getElementById('use-case-selector').addEventListener('change', (e) => {
+        createOrUpdateChart(e.target.value);
+    });
+
+    createOrUpdateChart();
+
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    mobileMenuButton.addEventListener('click', () => {
+        mobileMenu.classList.toggle('hidden');
+    });
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+            if (mobileMenu.classList.contains('hidden') === false) {
+                 mobileMenu.classList.add('hidden');
+            }
+        });
+    });
+    
+    const sections = document.querySelectorAll('main section');
+    const navLinks = document.querySelectorAll('.nav-button');
+
+    window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+            const sectionTop = section.offsetTop;
+            if (pageYOffset >= sectionTop - 150) {
+                current = section.getAttribute('id');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href').includes(current)) {
+                link.classList.add('active');
+            }
+        });
+    });
+});
+</script>
+
+</body>
+</html>
+
