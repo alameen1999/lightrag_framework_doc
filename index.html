@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LightRag: An Interactive Deep Dive</title>
+    <title>RAG-Anything: An Interactive Deep Dive</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -85,13 +85,17 @@
 
     <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
         <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-gray-800">LightRag Explorer</h1>
+            <h1 class="text-2xl font-bold text-gray-800">LightRAG Framework</h1>
             <div class="hidden md:flex items-center space-x-8">
                 <a href="#overview" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Overview</a>
                 <a href="#pipeline" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Pipeline</a>
                 <a href="#tech" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Core Tech</a>
                 <a href="#comparison" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Comparison</a>
                 <a href="#use-cases" class="nav-button text-gray-600 hover:text-blue-500 font-medium">Use Cases</a>
+                <a href="https://github.com/HKUDS/LightRAG" target="_blank" rel="noopener noreferrer" class="bg-gray-800 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-900 transition-colors flex items-center space-x-2">
+                    <span>GitHub Repo</span>
+                    <span class="text-lg">↗</span>
+                </a>
             </div>
             <button id="mobile-menu-button" class="md:hidden text-gray-700 focus:outline-none">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
@@ -103,6 +107,7 @@
              <a href="#tech" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Core Tech</a>
              <a href="#comparison" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Comparison</a>
              <a href="#use-cases" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">Use Cases</a>
+             <a href="https://github.com/HKUDS/LightRAG" target="_blank" rel="noopener noreferrer" class="block py-2 text-gray-600 hover:text-blue-500 font-medium">GitHub Repo ↗</a>
         </div>
     </header>
 
@@ -252,7 +257,9 @@
     <footer class="bg-gray-800 text-white mt-24">
         <div class="container mx-auto px-6 py-8 text-center">
             <p>Interactive Explainer for RAG-Anything</p>
-            <p class="text-sm text-gray-400 mt-2">Built to demonstrate the capabilities of multimodal RAG systems.</p>
+            <p class="text-sm text-gray-400 mt-2">Built to demonstrate the capabilities of multimodal RAG systems. 
+                <a href="https://github.com/HKUDS/LightRAG" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">View Source on GitHub</a>.
+            </p>
         </div>
     </footer>
 
@@ -551,4 +558,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
-
